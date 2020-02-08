@@ -17,23 +17,38 @@ import { makeStyles } from '@material-ui/core/styles'
 
 const useStyles = makeStyles(theme => ({
   list: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: theme.palette.background.paper,
+    margin: theme?.spacing(1, 0),
+    width: 360,
+    backgroundColor: theme?.palette?.background?.paper,
     maxHeight: '40vh',
     overflowY: 'auto'
+  },
+  subheader: {
+    textAlign: 'center'
   }
 }))
 
+const hasValue = value => (value ? undefined : 'Cannot be empty')
+
+const isUnique = (value, allValues) => {
+  const { todos = [] } = allValues
+  const isUnique = todos.findIndex(({ todo }) => todo === value) === -1
+  return isUnique ? undefined : 'Todo must be unique'
+}
+
+const composeValidators = (...validators) => (value, allValues) =>
+  validators.reduce(
+    (error, validator) => error || validator(value, allValues),
+    undefined
+  )
+
 function Form() {
   const classes = useStyles()
+  const [touched, setTouched] = React.useState(false)
   return (
     <FinalForm onSubmit={() => {}} mutators={arrayMutators}>
       {({ handleSubmit, form: { mutators } }) => (
         <form onSubmit={handleSubmit}>
-          <Typography variant="h3" component="h1" align="center">
-            React Final Form Todos
-          </Typography>
           <Grid container direction="column" alignItems="center">
             <Grid item>
               <FieldArray name="todos">
@@ -42,11 +57,15 @@ function Form() {
                     dense
                     className={classes.list}
                     aria-label="todos list"
-                    subheader={<ListSubheader>Todos</ListSubheader>}
+                    subheader={
+                      <ListSubheader className={classes.subheader}>
+                        Todos
+                      </ListSubheader>
+                    }
                   >
                     {fields.map((name, index) => (
-                      <ListItem key={fields?.value?.[index]}>
-                        <Field name={name}>
+                      <ListItem key={fields?.value?.[index].todo}>
+                        <Field name={`${name}.todo`}>
                           {({ input: { value } }) => (
                             <Typography>{value}</Typography>
                           )}
@@ -58,17 +77,24 @@ function Form() {
               </FieldArray>
             </Grid>
             <Grid item>
-              <Field name="todo">
-                {({ input: { value, onChange } }) => (
+              <Field
+                name="todo"
+                validate={composeValidators(hasValue, isUnique)}
+              >
+                {({ input: { value, onChange }, meta: { error } }) => (
                   <TextField
                     id="new_todo"
                     label="New Todo"
                     value={value}
+                    error={error && touched}
+                    helperText={touched && error}
                     onChange={onChange}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        mutators.push('todos', value)
+                      !touched && setTouched(true)
+                      if (e.key === 'Enter' && !error) {
+                        mutators.push('todos', { complete: false, todo: value })
                         onChange('')
+                        setTouched(false)
                       }
                     }}
                     autoFocus
@@ -79,8 +105,11 @@ function Form() {
                             <IconButton
                               aria-label="add-todo"
                               onClick={() => {
-                                mutators.push('todos', value)
-                                onChange('')
+                                if (!error) {
+                                  mutators.push('todos', value)
+                                  onChange('')
+                                  setTouched(false)
+                                }
                               }}
                             >
                               <AddIcon />
